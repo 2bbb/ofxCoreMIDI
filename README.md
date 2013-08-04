@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # ofxCoreMIDI (OSX)
 
 ## How to use
@@ -42,3 +43,9 @@ http://recotana.com/
 
 https://github.com/recotana/RCTMidiLib
 
+=======
+ofxCoreMIDI
+===========
+
+Using CoreMIDI with openframeworks in OSX
+>>>>>>> 9eae9b50dccc2a8a10cbc8284d870e524d7bd22c
