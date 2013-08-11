@@ -44,3 +44,8 @@ Copyright (c) 2011 recotana/osamu funada
 http://recotana.com/
 
 https://github.com/recotana/RCTMidiLib
+
+## At the last
+
+Please create new issue, if there is a problem.
+And please throw pull request, if you have a cool idea!!
