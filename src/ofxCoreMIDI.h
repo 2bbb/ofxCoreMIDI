@@ -27,6 +27,9 @@ public:
 }
 
 - (instancetype)initWithMIDIReceiver:(ofxCoreMIDIReceiver *)receiver;
+- (NSArray *)getDeviceList;
+- (void)connectAllSources;
+- (void)connect:(NSString *)deviceName;
 
 @end
 
@@ -34,6 +37,30 @@ class ofxCoreMIDI {
 public:
     void setReceiver(ofxCoreMIDIReceiver *receiver) {
         wrapper = [[PGMidiWrapper alloc] initWithMIDIReceiver:receiver];
+    }
+    
+    vector<string> getDevices(bool verbose = false) {
+        NSArray *deviceList = [wrapper getDeviceList];
+        vector<string> devices;
+        
+        for(NSDictionary *device in deviceList) {
+            if(verbose) {
+                NSLog(@"%@", device);
+            }
+            NSString *deviceName = [device objectForKey:@"name"];
+            devices.push_back([deviceName cStringUsingEncoding:NSUTF8StringEncoding]);
+        }
+        
+        return devices;
+    }
+    
+    void connect() {
+        [wrapper connectAllSources];
+    }
+    
+    void connect(string deviceName) {
+        [wrapper connect:[NSString stringWithCString:deviceName.c_str()
+                                            encoding:NSUTF8StringEncoding]];
     }
 private:
     PGMidiWrapper *wrapper;

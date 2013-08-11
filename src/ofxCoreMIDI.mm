@@ -15,10 +15,20 @@
         receiver = _receiver;
         midi = [[RCTMidiLib alloc] init];
         [midi setDelegate:self];
-        
-        [midi connectAllSources];
     }
     return self;
+}
+
+- (void)connectAllSources {
+    [midi connectAllSources];
+}
+
+- (void)connect:(NSString *)deviceName {
+    [midi connect:deviceName];
+}
+
+- (NSArray *)getDeviceList {
+    return [midi getDeviceList];
 }
 
 #pragma mark -- delegate method : midi recieve process --

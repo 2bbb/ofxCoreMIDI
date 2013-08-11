@@ -3,6 +3,11 @@
 //--------------------------------------------------------------
 void testApp::setup(){
     midi.setReceiver(&receiver);
+    vector<string> devices = midi.getDevices(true);
+    for(int i = 0; i < devices.size(); i++) {
+        cout << "device " << i << " " << devices[i] << endl;
+        midi.connect(devices[i]);
+    }
 }
 
 //--------------------------------------------------------------

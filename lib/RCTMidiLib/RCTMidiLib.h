@@ -29,24 +29,21 @@ enum{
 @protocol RCTMidiLibDelegate 
 @optional
 
-/*
- midi recieve delegate method
- */
+#pragma mark  midi recieve delegate method
+
 -(void)noteOnFlag:(BOOL)aOnFlag noteNo:(Byte)aNumber velocity:(Byte)aVelocity channel:(Byte)aChannel;
 -(void)controlChangeWithNumber:(Byte)aNumber data:(Byte)aData channnel:(Byte)aChannel;
 -(void)polyKeyPressNoteNo:(Byte)aNoteNo press:(Byte)aPress channel:(Byte)aChannel;
 -(void)channelPress:(Byte)aPress channel:(Byte)aChannel;
 -(void)pitchBendData:(UInt16)aData channel:(Byte)aChannel;
 
-/*
- midi send delegate method
- */
+
+#pragma mark midi send delegate method
+
 -(void)sendErrorWithPacketList:(MIDIPacketList*)aPacketList;
 
 
-/*
- midi notifications delegate method
- */
+#pragma mark  midi notifications delegate method
 
 -(void)connectMidiSource:(NSDictionary*)aSourceProperty device:(NSDictionary*)aDeviceProperty;
 -(void)disconnectMidiSource:(NSDictionary*)aSourceProperty device:(NSDictionary*)aDeviceProperty;
@@ -56,9 +53,8 @@ enum{
 -(void)midiMessageError:(const MIDIIOErrorNotification*)notification;
 
 
-/*
- midi error delegate method
- */
+#pragma mark  midi error delegate method
+
 -(void)midiError:(NSError*)aError;
 
 @end
@@ -136,11 +132,17 @@ enum{
 /*
  MIDI Device Control
  */
+
 -(void)connectAllSources;
 -(void)disconnectAllSources;
 
+// 2bit added
+- (NSArray *)getDeviceList;
+- (void)connect:(NSString *)deviceName;
 
-
+// 2bit moved from private
+-(void)connectSource:(MIDIEndpointRef)aSource;
+-(void)disconnectSource:(MIDIEndpointRef)aSource;
 
 @end
 

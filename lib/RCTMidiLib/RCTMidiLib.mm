@@ -17,10 +17,6 @@
 
 -(void)sendMidi:(const UInt8*)data size:(UInt32)size;
 
-
--(void)connectSource:(MIDIEndpointRef)aSource;
--(void)disconnectSource:(MIDIEndpointRef)aSource;
-
 -(void)addDeviceProperty:(NSDictionary*)aDevice;
 -(void)removeDeviceProperty:(NSDictionary*)aDevice;
 
@@ -29,7 +25,7 @@
 
 -(NSDictionary*)dictionaryEndpointWithEndpointRef:(MIDIEndpointRef)aSource;
 -(NSDictionary*)dictionaryEntityWithDeviceRef:(MIDIEntityRef)aEntity;
--(NSDictionary*)dictionaryDivceWithDeviceRef:(MIDIDeviceRef)aDevice;
+-(NSDictionary*)dictionaryDeviceWithDeviceRef:(MIDIDeviceRef)aDevice;
 
 -(void)addText:(NSString*)aText;
 -(OSStatus)errorStatus:(OSStatus)aStatus message:(NSString*)aMessage;
@@ -39,7 +35,7 @@
 
 
 void midiNotificationProcess(const MIDINotification *message, void *ref);
-void midiReadProcess(const MIDIPacketList *packetList, void *readProcRef, void *srcConnRef);
+void midiReadProcess(const MIDIPacketList *packetList, void *readProcRef, void *inPortRef);
 
 const MIDIPacketList *sharedPacketList;
 
@@ -50,31 +46,31 @@ const MIDIPacketList *sharedPacketList;
 
 -(id)init{
 	if (self=[super init]) {
-		
 		OSStatus error;
 		
-		error=MIDIClientCreate((CFStringRef)@"RCTMidiLib Client", midiNotificationProcess, self, &client);
+		error = MIDIClientCreate((CFStringRef)@"RCTMidiLib Client", midiNotificationProcess, self, &client);
 		if(error){
 			[self errorStatus:error message:@"Init-MIDIClientCreate"];
 			return nil;
 		}
 		
-		error=MIDIOutputPortCreate(client, (CFStringRef)@"RCTMidiLib-OutPort", &outPort);
+		error = MIDIOutputPortCreate(client, (CFStringRef)@"RCTMidiLib-OutPort", &outPort);
         if(error){
 			[self errorStatus:error message:@"Init-MIDIOutputPortCreate"];
 		    return nil;
 		}
 		
-		error=MIDIInputPortCreate(client, (CFStringRef)@"RCTMidiLib-InPort", midiReadProcess, self, &inPort);
+		error = MIDIInputPortCreate(client, (CFStringRef)@"RCTMidiLib-InPort", midiReadProcess, self, &inPort);
         if(error){
 			[self errorStatus:error message:@"Init-MIDIInputPortCreate"];
 			return nil;
 		}
 		
-		devices=[[NSMutableArray alloc] init];
+		devices = [[NSMutableArray alloc] init];
 	}
 	return self;
 }
+
 -(void)dealloc{
 	[self disconnectAllSources];
 	
@@ -85,7 +81,29 @@ const MIDIPacketList *sharedPacketList;
 	[super dealloc];
 }
 
+// 2bit added
 
+- (NSArray *)getDeviceList {
+	for (ItemCount index = 0; index < MIDIGetNumberOfSources() ; ++index) {
+		MIDIEndpointRef aSource = MIDIGetSource(index);
+        OSStatus error;
+        
+//        error = MIDIPortConnectSource(inPort, aSource, self);
+//        if(error){
+//            [self errorStatus:error message:@"Connect-MIDIPortConnectSource"];
+//            return;
+//        }
+//        
+        NSDictionary *deviceDic = [self dictionaryDeviceWithDeviceRef:[self deviceWithEndpointRef:aSource]];
+        NSDictionary *endpointDic=[self dictionaryEndpointWithEndpointRef:aSource];
+        NSLog(@"%@ %@", deviceDic, endpointDic);
+        if(deviceDic && endpointDic) {
+            [self addDeviceProperty:deviceDic];
+        }
+    }
+    
+    return devices;
+}
 
 #pragma mark -- source connect/disconnect --
 
@@ -93,10 +111,36 @@ const MIDIPacketList *sharedPacketList;
  すべてのソースをInputPortへ接続
  */
 -(void)connectAllSources{
-
 	for (ItemCount index = 0; index < MIDIGetNumberOfSources() ; ++index)
 		[self connectSource:MIDIGetSource(index)];
 
+}
+
+- (void)connect:(NSString *)deviceName {
+	for (ItemCount index = 0; index < MIDIGetNumberOfSources() ; ++index) {
+		[self connectSource:MIDIGetSource(index) withDeviceName:deviceName];
+    }
+}
+
+-(void)connectSource:(MIDIEndpointRef)aSource withDeviceName:(NSString *)deviceName {
+	OSStatus error;
+	
+	error=MIDIPortConnectSource(inPort, aSource, self);
+    if(error){
+		[self errorStatus:error message:@"Connect-MIDIPortConnectSource"];
+	    return;
+	}
+	
+	NSDictionary *deviceDic=[self dictionaryDeviceWithDeviceRef:[self deviceWithEndpointRef:aSource]];
+	NSDictionary *endpointDic=[self dictionaryEndpointWithEndpointRef:aSource];
+	if(deviceDic && endpointDic && [[deviceDic objectForKey:@"name"] isEqualToString:deviceName]) {
+		
+		[self addDeviceProperty:deviceDic];
+		
+		if([self.delegate respondsToSelector:@selector(connectMidiSource:device:)]){
+			[self.delegate connectMidiSource:endpointDic device:deviceDic];
+		}
+	}
 }
 
 /*
@@ -106,13 +150,13 @@ const MIDIPacketList *sharedPacketList;
 
 	OSStatus error;
 	
-	error=MIDIPortConnectSource(inPort, aSource, self);
+	error = MIDIPortConnectSource(inPort, aSource, self);
     if(error){ 
 		[self errorStatus:error message:@"Connect-MIDIPortConnectSource"];
 	    return;
 	}
 	
-	NSDictionary *deviceDic=[self dictionaryDivceWithDeviceRef:[self deviceWithEndpointRef:aSource]];
+	NSDictionary *deviceDic=[self dictionaryDeviceWithDeviceRef:[self deviceWithEndpointRef:aSource]];
 	NSDictionary *endpointDic=[self dictionaryEndpointWithEndpointRef:aSource];
 	if(deviceDic && endpointDic){
 		
@@ -148,7 +192,7 @@ const MIDIPacketList *sharedPacketList;
 		return;
 	}
 	
-	NSDictionary *deviceDic=[self dictionaryDivceWithDeviceRef:[self deviceWithEndpointRef:aSource]];
+	NSDictionary *deviceDic=[self dictionaryDeviceWithDeviceRef:[self deviceWithEndpointRef:aSource]];
 	NSDictionary *endpointDic=[self dictionaryEndpointWithEndpointRef:aSource];
 	if(deviceDic && endpointDic){
 		[self removeDeviceProperty:deviceDic];
@@ -236,7 +280,6 @@ const MIDIPacketList *sharedPacketList;
 	packet[1] = lsb_comvert(data);
 	packet[2] = msb_comvert(data);
 	[self sendMidi:packet size:3];
-//	[self addText:[NSString stringWithFormat:@"*** send pitchbend:%0X %0X %0X -- %0X\n",packet[0],packet[1],packet[2],data]];
 }
 
 
@@ -246,9 +289,6 @@ const MIDIPacketList *sharedPacketList;
  */
 - (void)sendMidi:(const UInt8*)data size:(UInt32)size
 {
-//	[self addText:[NSString stringWithFormat:@"%X %X %X",data[0],data[1],data[2]]];
-	
-	
 	assert(size < 65536);
     Byte packetBuffer[size+100];
 	
@@ -294,7 +334,7 @@ const MIDIPacketList *sharedPacketList;
 /*
  MIDI受信処理(メインスレッド）
  */
--(void)recieveProcess{
+- (void)recieveProcess {
 	
 	//MIDIPacketList先頭データを取得
     MIDIPacket *packet = (MIDIPacket *)&(sharedPacketList->packet[0]);
@@ -308,31 +348,26 @@ const MIDIPacketList *sharedPacketList;
 		if ((messsage == kMesNoteON) && (packet->data[2] != 0)) {
 			if([self.delegate respondsToSelector:@selector(noteOnFlag:noteNo:velocity:channel:)]){
 				[self.delegate noteOnFlag:YES noteNo:packet->data[1] velocity:packet->data[2] channel:channel];
-			//	[self addText:[NSString stringWithFormat:@"R NoteON: %X %X %X -- ",packet->data[0],packet->data[1],packet->data[2]]];
-			}	
+			}
 		}
 		else if (messsage == kMesNoteOFF || messsage == kMesNoteON) {
 			if([self.delegate respondsToSelector:@selector(noteOnFlag:noteNo:velocity:channel:)]){
 				[self.delegate noteOnFlag:NO noteNo:packet->data[1] velocity:packet->data[2] channel:channel];
-			//	[self addText:[NSString stringWithFormat:@"R NoteOFF: %X %X %X -- ",packet->data[0],packet->data[1],packet->data[2]]];
 			}
 		}
 		else if (messsage == kMesControlChange) {
 			if([self.delegate respondsToSelector:@selector(controlChangeWithNumber:data:channnel:)]){
 				[self.delegate controlChangeWithNumber:packet->data[1] data:packet->data[2] channnel:channel];
-			//	[self addText:[NSString stringWithFormat:@"R CC: %X %X %X -- ",packet->data[0],packet->data[1],packet->data[2]]];
 			}
 		}
 		else if (messsage == kMesPolyKeyPress) {
 			if([self.delegate respondsToSelector:@selector(polyKeyPressNoteNo:press:channel:)]){
 				[self.delegate polyKeyPressNoteNo:packet->data[1] press:packet->data[2] channel:channel];
-				//	[self addText:[NSString stringWithFormat:@"R CC: %X %X %X -- ",packet->data[0],packet->data[1],packet->data[2]]];
 			}
 		}
 		else if (messsage == kMesChPress) {
 			if([self.delegate respondsToSelector:@selector(channelPress:channel:)]){
 				[self.delegate channelPress:packet->data[1] channel:channel];
-				//	[self addText:[NSString stringWithFormat:@"R CC: %X %X %X -- ",packet->data[0],packet->data[1],packet->data[2]]];
 			}
 		}
 		else if (messsage == kMesPitchBend) {
@@ -340,7 +375,6 @@ const MIDIPacketList *sharedPacketList;
 			UInt32 value=uint16_combine(packet->data[2],packet->data[1]);
 			if([self.delegate respondsToSelector:@selector(pitchBendData:channel:)]){
 				[self.delegate pitchBendData:value channel:channel];
-			//	[self addText:[NSString stringWithFormat:@"R CC: %X %X %X -- ",packet->data[0],packet->data[1],packet->data[2]]];
 			}
 		}
 		
@@ -352,11 +386,18 @@ const MIDIPacketList *sharedPacketList;
 /*
   MIDI受信コールバック(バックグラウンドスレッド）
  */
-void midiReadProcess(const MIDIPacketList *packetList, void *readProcRef, void *srcConnRef)
+void midiReadProcess(const MIDIPacketList *packetList, void *readProcRef, void *inPortRef)
 {
-	RCTMidiLib *self=(RCTMidiLib*)readProcRef;
-	sharedPacketList=packetList;
+	RCTMidiLib *self = (RCTMidiLib *)readProcRef;
+	sharedPacketList = packetList;
 	
+    MIDIPortRef sourcePortRef = (MIDIPortRef)inPortRef;
+    
+    NSDictionary *midiProperties;
+    
+    MIDIObjectGetProperties(sourcePortRef, (CFPropertyListRef *)&midiProperties, YES);
+    NSLog(@"%@", midiProperties);
+    
 	//メインスレッド側のMIDI受信処理メソッドを呼ぶ
 	[self performSelectorOnMainThread:@selector(recieveProcess)
 						   withObject:nil
@@ -370,7 +411,6 @@ void midiReadProcess(const MIDIPacketList *packetList, void *readProcRef, void *
 {
 	if (notification->childType == kMIDIObjectType_Source){
         [self connectSource:(MIDIEndpointRef)notification->child];
-		
 	}
     else if (notification->childType == kMIDIObjectType_Destination){}
 }
@@ -494,7 +534,7 @@ void midiNotificationProcess(const MIDINotification *notification, void *ref)
 	return dic;
 }
 
--(NSDictionary*)dictionaryDivceWithDeviceRef:(MIDIDeviceRef)aDevice{
+-(NSDictionary*)dictionaryDeviceWithDeviceRef:(MIDIDeviceRef)aDevice{
 	
 	OSStatus error;
 	NSDictionary *dic;
@@ -515,16 +555,7 @@ void midiNotificationProcess(const MIDINotification *notification, void *ref)
 
 #pragma mark -- Logging --
 
--(void)addText:(NSString*)aText{
-	if([self.delegate respondsToSelector:@selector(addLogMidiText:)]){
-		[self.delegate  performSelectorOnMainThread:@selector(addLogMidiText:)
-										 withObject:aText
-									  waitUntilDone:NO];
-	}
-}
-
 -(OSStatus)errorStatus:(OSStatus)aStatus message:(NSString*)aMessage{
-	
 	if(aStatus){
 		if([self.delegate respondsToSelector:@selector(midiError:)]){
 			[self.delegate  performSelectorOnMainThread:@selector(midiError:)
